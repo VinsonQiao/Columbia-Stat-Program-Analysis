@@ -1,0 +1,512 @@
+---
+title: "Final Project for STAT 5293"
+author: ""
+date: ""
+output: 
+  html_document:
+    code_folding: hide
+    toc: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Introduction
+In China, Columbia Statistics Graduate Program has a not good reputation,and the rumor last for a long time among Chinese international students: Most of Chinese international students who are going to apply for graduate school think Columbia statistcal department has not admission requirement, almost anybody apply for it can get admission. They give two eveidences: (1)they have heard students in Statistics department are from relatively not so good undergraduate schools.(2)they claim that Stats students are not active during the job searching process and lack of abilities to gain jobs.
+
+Most of times, rumors are not based on facts and are untenable. Therefore, our group would like to break this rumor by provide visualized and solid evidence from our research and analysis. Thus, defending and restoring the reputation of our program.
+
+## Description of The Data Source
+
+#### I. Data Source
+
+In this project, we have used 3 major set of data:
+
+1. Data of students from 2018-2019 Statistics Program
+2. Data of applicants from class of Fall 2019
+3. Career outcomes of Stats students in the past two years
+
+The first data set is obtained from 2018 Statistics Program We-chat group through We-chat API. Since the We-chat group suggests everybody to change their username to the format "Name-Undergrad school-Undergrad major", we are able to obtain those informations.
+
+The second data set is obtained through the Statistics Program Career We-chat group through the same methodology. We were planning to use the data from LinkedIn. However, LinkedIn has restricted their API.
+
+The third data set is gained from a career and univeristy forum called "1 Point 3 Acres" through their API. There is a specific post where applicants of Columbia Statistics post their infomations such as GRE scores, TOEFL score, and undergraduate GPA.
+
+It took us a lot of time to get the data we wanted this time, because we have to code to connect with APIs. We realize this might be the real case when comes to work with data. Even for just some simple and straight forward analysis, getting the data itself is already a hard question.
+
+#### II. Data Information
+
+The first dataset contains 315 observations and 6 variables: 
+
++ ID: int
++ Under_Grad_School: factor with 66 levels 
++ Under_Grad_Major factor with 11 levels
++ US_Ranking: integer, indicates the ranking of U.S. undergraduate schools among all school by U.S. News
++ X211: logical, "Ivy League" in China. Indicator only for Chinese undergraduate schools
++ X985: logical, another "Ivy League" in China. Indicator only for Chinese undergraduate schools
++ Gender: int, 1 as male and 2 as female. 0 is Unknown
++ State: chr, which state are they from
++ City: chr, which city are they from
+
+```{r, message=FALSE,warning=FALSE}
+Sys.setlocale(category = "LC_ALL", locale = "Chinese")
+library(tidyverse)
+library(mi)
+library(ggplot2)
+library(tidyr)
+library(dplyr)
+library(wordcloud2) 
+library(RColorBrewer)
+info <- read.csv("./2018_stats_new.csv")
+```
+
+The second dataset contains 38 observations and 4 variables:
+
++ GPA: dbl, GPA of the applicant
++ GRE: dbl, GRE scores of the applicant
++ TOEFL: dbl, TOEFL scores of the applicant
++ school: chr, undergraduate school of the applicant
+
+```{r}
+applic <- read.csv("./2019application.csv", header = FALSE)
+colnames(applic) <- c("GPA", "GRE", "TOEFL", "school")
+applic$school <- as.character(applic$school)
+```
+
+The third dataset contains 290 observation and 3 variable:
+
++ company: fctr, the company where the student went to after he/she graduated from Columbia Statistics Program. Also includes "actively seeking" for student who are still looking for job
++ num: int, number of people working in that company
++ industry: chr, with industries: health care, fund, financial services, technology, investment banking, consulting, media, insurance, enterprise, fashion, transportation, and manufacturing (note there are two companies that we were not able to find detailed information on Google thus labeling their industry)
+
+```{r}
+job <- read.csv("./Clean_job_data.csv", header = FALSE)
+colnames(job) <- "company"
+
+# get the number of people working in a certain company
+job <- job %>% group_by(company) %>% summarise(num = n())
+
+# label the indstry
+health_care <- c("Aetna","Bayer","clicktherapeutics","Cylera","DeanHealthPlan",
+                 "IQVIA","MtSinai","ValRe","zoetis")
+fund <- c("Acumen","hedgefund","JQInvestment","Private Equity","TSYS")
+fin_service <- c("AB","Allianz","alphacrest","AngeloGordon","BlackRock","BlueVine",
+                 "BNYMellon","BridgepointCapital","Capital One","Citco","enodo",
+                 "HuntingtonBank","LendingClub","MTBank","Mastercard","Moody","RBC","SoFi",
+                 "Squaretrade","TIAA","tmam", "CreditSuisse","Geller")
+tech <- c("Alibaba","Amazon","ClearpoolGroup","DeepMacro","AutomotiveMastermind","Didi",
+          "Digitas",
+          "EXL","Facebook","FON","genentech","GoDaddy",
+          "indeed.com","LamResearch","LinkedIn","lino.netwok","lotame","MATRiXANALYTiCS",
+          "NPD","Allergan","Petuum","PingAnTech","qualcomm",
+          "Rakuten","SAP","sensitech","SimpleBet","sparkcognition","StrategyWise",
+          "uber","Ushur","walmartlabs","Wayfair","WoltersKluwer","ControlTec", "CRB", "CRI",
+          "CriterionEconomics")
+ib <- c("Barclays","Citi","Deutsche Bank","GS","JPMorgan","Macquarie","Trexquant","UBS")
+consulting <- c("Capgemini","EY","Gartner","ISU","KPMG","McKinsey","Protiviti","PWC","Willdan")
+media <- c("Carat","CBS","GWA","Newsday","TQE")
+insurance <- c("CAS","ICWInsurance","Radian")
+enterprise <- c("Hamilton","DIP","Staples","Walmart","wunderman")
+fashion <- c("Claire","Hawkins","M.Co","weiss")
+trans <- c("Jet","Loadsmart")
+manu <- c("MarathonGinseng")
+
+job <- job %>% mutate(industry = case_when(company %in% health_care~"Health Care",
+                                company %in% fund ~"Fund",
+                                company %in%  fin_service~"Fin Services",
+                                company  %in% tech~"Technology",
+                                company %in% ib~"IB",
+                                company %in% consulting ~"Consulting",
+                                company %in% media ~"Media",
+                                company %in% insurance~"Insurance",
+                                company %in% enterprise~"Enterprise",
+                                company %in% fashion~"Fashion",
+                                company %in% trans~"Trans",
+                                company %in% manu ~"Manufacturing"))
+```
+
+#### III. Data Limitations
+
+There are 3 main limitations of our data set. First of all, since we obtained the first two dataset from We-chat, not everbody on the We-chat group fully labeled their information although they are suggested to do so. As a result, we have a lot of missing values in the variable "Under_Grad_School" and "Under_Grad_Major" in the first dataset. 
+
+```{r}
+schl <- length(na.omit(info$Under_Grad_School))
+cat("Number of people who labeled their undergraduate school name: ", schl)
+```
+
+However, since our sample size is relatively large, we are able to mitigate this issue. As you can see, although more than half of people did not label their school name, we still obtain 116 valuable data. 
+
+Second issue is that first two dataset only contains informations of the Chinese student's community. We did not get informations of Stats students from other countries, which could make our analysis a little bit biased. However, among 350 students in our current class, there are around 320 Chinese students, which is about 92% of the student population. We believe just by using the data of Chinese student. Our analysis is well-represented.
+
+The third issue is that we are unable to match the students with their undergraduate schools and their jobs after they graduate. Because the school information are obtained from the current class, and the job information are obtained from previous classes. If we made the match, we were able to obtain more insighful and infomative analysis. 
+
+The fourth main issue is that we are not able to obtain a lot of detailed applicants data. In our case, we only have 38 observations for the applicants data with some missing values. Therefore, the result might not be representative enough. However, applicants data is only part of our evidence. And we wish to present a general pictures of applicants' performances.
+
+#### IV. Description of Data Import/ Cleaning/ Transformation
+
+Cleaning the first dataset is purely brutal. Since we scarpped the dataset from the We-chat group, the original format was a mess. It contains all kinds of symbols even emojis from people's username. And the school name is not standardized. For example, somebody would write University of Connecticut as "UCONN", but someone else would write as "Uconn". Moreover, the state and city variable were originally in Chinese. We find it hard to change it in R. Therefore, I ended up manually input the data into excel and replace the Chinese character using excel functions, which is really time consuming. One good thing is that I can directly modify the data to the form I wanted without much transformation in R. However, if anyone have better idea of how to clean this data, please let us know!
+
+For the second dataset, there is no transformation needed. The data we obtained after scarpping was already the form we wanted.
+
+The third dataset originally has 2 variables: "usernames" and "company." Usernames were still a mess. However in this case, only the company variable is important to us, and since we do not need to join or match any data in other dataset, there is no need to use ID indicates the observation. Therefore, we ended up getting rid of the variable "username" and only left with "company" variables. Then I used dplyr to obtain the number of people working in each company into variable "num". For the variable "industry", there is another brutal process. I Googled all the company and manully classified each of them, which is really time consuming. But I really cannot think of any other methods to work with it.
+
+## Analysis of Missing Values
+```{r, message = FALSE, warning=FALSE}
+image(missing_data.frame(info))
+
+```
+
+For the first dataset, the missing values in the variable "Under_Grad_School" is completely at random (MCAR). People just simply did not label their undergraduate schools because they forgot or too lazy to do so. However, almost all people who did not label their school names also did not specify their major. This is a missing at random (MAR) pattern. Moreover, for the missing values in variables "US_Ranking", "X211", and "X985", they are related because the way I organized the data. "US_Ranking" is targeted undergraduate schools in the U.S. Therefore, for undergraduate schools in China, I labeled as NA, vice versa for "X211" and "X985". 
+
+```{r, warning=FALSE}
+image(missing_data.frame(applic))
+```
+
+In the second dataset, one obvious pattern of missing value is that people who did not report their GRE scores also did not report their TOEFL score. Another obvious pattern is that people simply just did not report their TOEFL scores. After checking the data, we found that it is because these students attend their undergraduate schools in the U.S. They do not need to take TOEFL test again when they apply for graduate school.
+
+The third dataset only has missing values in the variable "industry" for people who are still looking for job, therefore, there is no need to do an missing value anlysis.
+
+## Analysis
+For our analysis, we are going to give data to refute these rumors from three parts:(1) The Summary of Undergraduate School (2)The Summary of jobs (3)The Summary of application 2019 Fall. 
+
+### I. The Summary of Undergraduate School
+
+```{r, message=FALSE}
+data_2<-read.csv("./2018_stats.csv")
+Region<-sort(table(data_2[,7])[-1],deceasing = TRUE)%>%as.data.frame()
+names(Region)<-c("Country/Region", "Number")
+ggplot(Region,aes(y=Number,x=`Country/Region`,fill=`Country/Region`))+
+       geom_bar(stat="identity")+
+  ggtitle("Country/Region for Undergraduate ")+
+  theme(plot.title = element_text(hjust = 0.5))+
+  scale_fill_brewer(palette="YlOrRd")
+```
+From the plot, we can get a general distribution of undergrad school, we can see that most of students come from U.S.A, and the second most groups come from China. A few students come from HK, Canada, UK, Japan, Australia.Therefore, let's focus on analzing students come from different countries and regions. 
+
+
+#### (1)American Undergrad
+```{r, message=FALSE}
+us_schl <- info %>% filter(!is.na(Under_Grad_School)) %>% filter(!is.na(US_Ranking)) %>%
+  mutate(cate = case_when(US_Ranking <= 30~"Top 30",
+                          US_Ranking <=60~"30-50",
+                          US_Ranking <= 100~"50-100",
+                          US_Ranking >100 ~"100+")) 
+us_schl_num <- nrow(us_schl)
+cat(" Number of columbia statistics students who attend undergraduate schools in the U.S: ", us_schl_num)
+```
+
+```{r, message=FALSE}
+data_2<-read.csv("./2018_stats.csv")
+#Undrad
+Region<-sort(table(data_2[,7])[-1],deceasing = TRUE)%>%as.data.frame()
+names(Region)<-c("Country/Region", "Number")
+
+#Countries
+data_3<-filter(data_2, data_2[,7] != "")
+USA<-filter(data_3,data_3[,7]=="U.S.A")
+USA$US_Ranking<-as.numeric(USA$US_Ranking)
+CHINA<-filter(data_3,data_3[,7]=="China")
+Other<-filter(data_3,data_3[,7]!="China" & data_3[,7] !="U.S.A")
+
+##USA Shcool
+USNeWs<-NULL
+for (i in 1:length(USA$US_Ranking)) {
+  if(USA$US_Ranking[i]<=30&is.na(USA$US_Ranking[i])== FALSE){USNeWs[i]<-"Top30"}
+   else if(USA$US_Ranking[i]<=50&USA$US_Ranking[i]>30&is.na(USA$US_Ranking[i])== FALSE){USNeWs[i]<-"Top50"}
+   else if(USA$US_Ranking[i]<=100&USA$US_Ranking[i]>50&is.na(USA$US_Ranking[i])== FALSE){USNeWs[i]<-"Top100"}
+   else if(USA$US_Ranking[i]>100&is.na(USA$US_Ranking[i])== FALSE){USNeWs[i]<-"100+"}
+   else if(is.na(USA$US_Ranking[i])== TRUE){USNeWs[i]<-"100+"}
+   else(return(NULL))
+} 
+USA<-cbind(USA,USNeWs)
+USNeWs<-table(USNeWs)%>%as.data.frame()
+USA_School<-USA[,c(2,8)]
+USA_table<-sort(table(USA_School[,1]),decreasing = T)%>%as.data.frame()%>%filter(.,Freq!=0)
+class<-NULL
+for (i in 1:nrow(USA_table)){
+       for (j in 1:nrow(USA_School)) {
+         if (USA_table[i,1]==USA_School[j,1]){class[i]<-as.character(USA_School[j,2])}
+       }
+}
+
+USA_table<-USA_table%>%cbind(.,class)
+colnames(USA_table)<-c("University","Number","Ranking")
+
+
+theme_dotplot <- theme_bw(14) +
+    theme(axis.text.y = element_text(size = rel(.75)),
+        axis.ticks.y = element_blank(),
+        axis.title.x = element_text(size = rel(.75)),
+        panel.grid.major.x = element_blank(),
+        panel.grid.major.y = element_line(size = 0.5),
+        panel.grid.minor.x = element_blank())
+
+ggplot(USA_table, aes(x = Number, y = reorder(University,Number),col = Ranking)) +
+    geom_point() +
+    scale_x_continuous(limits = c(1, 5),breaks = seq(0, 5, 1)) +
+    theme_dotplot +
+    ylab("University") +
+    ggtitle("Summary of American Undergrad")+
+    theme(plot.title = element_text(hjust = 0.5))+
+    scale_fill_brewer(palette="YlOrRd")
+```
+We can see there is a lots of students come from very famous universities like UIUC,UMW,UCLA. 
+
+```{r, message=FALSE}
+pie(USNeWs$Freq,labels =c("13.6%", "30.3%", "22.7%", "33.3%") ,col = c("lightgoldenrod","lightgoldenrod1","lightgoldenrod2","lightgoldenrod3"),main = "The dist of USnews Ranking" )
+legend("topright",levels(USNeWs$USNeWs),cex = 0.85, fill = c("lightgoldenrod","lightgoldenrod1","lightgoldenrod2","lightgoldenrod3"))
+```
+For the futher understanding, we use pie chart to get more information.Because all school are American undergrad, we use USnews undergrad ranking here.
+
+```{r, message=FALSE}
+#us_rank <- us_schl %>% group_by(cate) %>% summarise(num=n(), schl = n_distinct(Under_Grad_School))
+ggplot(data = us_schl, mapping = 
+         aes(factor(cate, c("Top 30", "30-50","50-100","100+")))) + 
+  geom_bar(stat = "count", fill="darkorange", alpha = 0.8) +
+  facet_wrap(~Under_Grad_Major) + ylim(0,13) +
+  ggtitle("Who Said Columbia Statistics Sucks?",
+          subtitle = "Undergraduate School of Statistics Students in Columbia (US)") +
+  labs(x = "School Rankings", y="Counts") +
+  theme(plot.title = element_text(face = "bold")) +
+  theme(plot.subtitle = element_text(face = "bold", color = "grey35")) +
+  theme(plot.caption = element_text(color = "grey68"))+
+  theme_grey(13)+
+  theme(plot.title = element_text(hjust = 0.5),plot.subtitle = element_text(hjust = 0.5))
+```
+
+
+We get the major information as well, waht we can get from above plot are:
+
+1. Among students in statistics department who specified their schools, 68 attends undergraduate school in the U.S. Moreover, if we ignor the faceting, it is obvious that more people are from Top 100 schools, whereas only few people are from schools ranked over 100. More accurately, there are 62 out of 68 students from Top 100 schools, which is around 92% of this group. Isn't this evident enough?
+2. There are two explanations for the second piece of information:
++ If we take a look at the faceting, excluding the people who did not label their major, Columbia Statistics in general loves students with Math and Stats bachelor degree. Moreover, for students majored in Stats, Columbia is more "tolerant" because larger proportion of Stats majored students are from "50-100" schools, whereas larger proportion of Math majored students are from "30-50" schools.
++ However, this is could also be a result from application. In other words, maybe only this many of people majored in math from "30-50" schools applied for the Columbia Statistics Program and were all accepted. Same thing applied for people majored in Stats. If we also have the detailed application data of current class, we could answer this questions. However, with limited data, we could only make two hypothesis and present them all.
+
+#### (2)Chinese Undergrad
+```{r, warning=FALSE}
+ch_schl <- info %>% filter(!is.na(Under_Grad_School)) %>% filter(!is.na(X211)) %>%
+  mutate(lab = case_when(X211==TRUE & X985==FALSE ~"211",
+                           X985==TRUE~"985",
+                           TRUE ~"Non 211/985"))
+ch_schl_num <- nrow(ch_schl)
+cat(" Number of columbia statistics students who attend undergraduate schools in China: ", ch_schl_num)
+```
+
+```{r, warning=FALSE}
+CHINA[19,5]<-FALSE
+CHINA[19,6]<-FALSE
+CHINA[21,5]<-FALSE
+CHINA[21,6]<-FALSE
+
+class<-NULL
+for (i in 1:nrow(CHINA)) {
+  if (CHINA[i,5] == TRUE & CHINA[i,6] == FALSE) {class[i]<-"211"}
+  else if (CHINA[i,6] == TRUE){class[i]<-"985"}
+  else(class[i]<-"Non-211/985")
+}
+
+CHINA<-cbind(CHINA,class)
+
+ggplot(CHINA,aes(x=class,fill=`class`))+
+       geom_bar(stat="count")+
+       ggtitle("The dist of Chinese Undergrd")+
+       theme(plot.title = element_text(hjust = 0.5))+
+       scale_fill_brewer(palette="YlOrRd")
+
+CHINA_table<-sort(table(CHINA$Under_Grad_School),decreasing = T)%>%as.data.frame()
+CHINA_table<-filter(CHINA_table,CHINA_table[,2] != 0)
+CHINA_table
+
+ggplot(CHINA_table, aes(x = Freq, y = reorder(Var1,Freq),col = Var1)) +
+    geom_point() +
+    scale_x_continuous(limits = c(1, 5),breaks = seq(0, 5, 1)) +
+    theme_dotplot +
+    xlab("Number")+
+    ylab("University") +
+    ggtitle("Summary of Chinese Undergrad")+
+    theme(plot.title = element_text(hjust = 0.5))+
+    scale_fill_brewer(palette="YlOrRd")
+```
+Among 34 students from undergraduate schools in China, there are 27 of them from schools classifies as "985", and 2 of then from schools classified as "211". Also, note that although both "211" and "985" are so called "Ivy League" in China. "985" schools are actually better than "211" schools. Only 4 students out of 24 are from school neither "985" nor "211". Therefore, there is really no evidence for people to say students in Columbia Satistics are from second to third-tier schools. 
+
+```{r, warning=FALSE}
+ch_schl <- info %>% filter(!is.na(Under_Grad_School)) %>% filter(!is.na(X211)) %>%
+  mutate(lab = case_when(X211==TRUE & X985==FALSE ~"211",
+                           X985==TRUE~"985",
+                           TRUE ~"Non 211/985"))
+#ch_rank <- ch_schl %>% group_by(lab) %>% summarise(num=n(), schl = n_distinct(Under_Grad_School))
+ggplot(data = ch_schl, mapping = aes(factor(lab, c("211", "985","Non 211/985")))) + 
+  geom_bar(stat = "count", fill="gold", alpha = 0.8) + facet_wrap(~Under_Grad_Major) + 
+  ylim(0,8) +
+  #geom_text(aes(label = num), position = position_dodge(width = 0.9), 
+            #vjust = -0.4, color = "grey68") +
+  ggtitle("Here is Another Piece of Evidence",
+          subtitle = "Undergraduate School of Statistics Students in Columbia (China)") +
+  labs(x = "School Rankings", y="Counts") +
+  theme(plot.title = element_text(face = "bold")) +
+  theme(plot.subtitle = element_text(face = "bold", color = "grey35")) +
+  theme(plot.caption = element_text(color = "grey68"))+
+  theme_grey(13)+
+  theme(plot.title = element_text(hjust = 0.5),plot.subtitle = element_text(hjust = 0.5))
+```
+For majors, Math and Stats still are dominant in the student body.
+
+#### (3)Other Undergrad
+
+```{r}
+ggplot(Other,aes(x=Other$Country.Region,fill=`Under_Grad_School`))+
+       geom_bar(stat="count")+
+       ggtitle("The dist of Undergrd from other Counties and Regions")+
+       theme(plot.title = element_text(hjust = 0.5))+
+       ylab("Number")+
+       xlab("Country/Region")+
+       scale_fill_brewer(palette="YlOrRd")
+```
+Because there are just a few students come from other countries, we just plot the histogram.
+
+### II. The Summary of Application 2019 Fall
+Up until this point, doubters may still argue that school ranking are subjective, which can not be used as standard comparison. Therefore, we prepared the so-called universal standard for graduate school admission, which are GPA, GRE scores, and TOEFL scores.
+```{r, warning=FALSE}
+Application_this_year<-read.csv("2019application.csv",header=FALSE, encoding = "UTF-8")
+GPA<-filter(Application_this_year,is.na(Application_this_year[,1]) ==FALSE)%>%.[,1]%>%as.data.frame()
+GRE<-filter(Application_this_year,is.na(Application_this_year[,2]) ==FALSE)%>%.[,2]%>%as.data.frame()
+TOFEL<-filter(Application_this_year,is.na(Application_this_year[,3]) ==FALSE)%>%.[,3]%>%as.data.frame()
+University<-filter(Application_this_year,Application_this_year[,4] !="")%>%.[,4]%>%as.data.frame()
+
+ggplot(GPA, aes(x = GPA[,1])) + 
+  geom_histogram( colour = "#80593D", fill = "wheat1",binwidth = 0.05)+
+  ggtitle("Distribution of GPA ")+
+  xlab("GPA")+
+  ylab("Number")+
+  theme(plot.title = element_text(hjust = 0.5))
+
+
+ggplot(GRE, aes(x = GRE[,1])) + 
+  geom_histogram( colour = "#80593D", fill = "wheat1",binwidth = 2)+
+  ggtitle("Distribution of GRE ")+
+  xlab("GRE")+
+  ylab("Number")+
+  theme(plot.title = element_text(hjust = 0.5))
+
+ggplot(TOFEL, aes(x = TOFEL[,1])) + 
+  geom_histogram( colour = "#80593D", fill = "wheat1",binwidth = 1)+
+  ggtitle("Distribution of TOFEL ")+
+  xlab("TOFEL")+
+  ylab("Number")+
+  theme(plot.title = element_text(hjust = 0.5))
+
+mean(GRE[,1])
+mean(TOFEL[,1])
+mean(GPA[,1])
+```
+We can get a gernal dist of standardized grads. The mean of GRE, TOFEL, GPA respectively are 325,105,3.7.
+
+```{r, warning=FALSE}
+ggplot(data = applic, mapping = aes(x = GPA, y = GRE)) +
+  geom_point(aes(fill = ifelse(TOEFL <= 110, "#0000ff",
+                 ifelse(TOEFL  <= 120, "#00ff00", 
+                 ifelse(is.na(TOEFL), "#00ffff")))), 
+             col = "#656565", alpha = 0.5, size = 4, shape = 21) +
+  geom_vline(xintercept = 3.6, color = "orange", linetype = "dashed", size = 2) +
+  geom_text(x = 3.4, y = 316, label = "GSAS Average GRE", col = "grey35") +
+  geom_hline(yintercept = 315, color = "orange", linetype = "dashed", size = 2) +
+  geom_text(x = 3.5, y = 331, label = "Columbia Average GPA", col = "grey35") +
+  scale_fill_manual(name = "TOEFL Test Score",
+                    values = c('#d7191c','#fdae61','#ffffbf'),
+                    breaks = c("#0000ff", "#00ff00", "#00ffff"),
+                    labels = c("Between 100-110", "Between 110-120 ", "NA")) +
+  ggtitle("Our Students Did Good on Standard Tests, too!", 
+          subtitle = "GPA, GRE, and TOEFL Scores of Columbia Applicants") +
+  theme(plot.title = element_text(face = "bold")) +
+  theme(plot.subtitle = element_text(face = "bold", color = "grey35")) +
+  theme(plot.caption = element_text(color = "grey68")) +
+  theme(legend.position = c(0.832, 0.21)) +
+  scale_y_continuous(name = "GRE", breaks = c(310, 315, 320, 325, 330, 335))+
+  theme(plot.title = element_text(hjust = 0.5),plot.subtitle = element_text(hjust = 0.5))
+```
+For understanding combined data, we make an overview plot.
+
+The horizontal orange dashed line indicates the Columbia Graduate School Arts and Sciences average GRE scores, according to US News. And the vertical dashed line indicates the Columbia Undergraduate School average GPA according to US News. 
+
+As you can see, excluding the missing values, most applicants are in the region where both GPA and GRE scores are above Columbia average. Moreover, their TOEFL scores, which indicates by the color of the circle, are all above 110 (note that transparent circle indicates missing in TOEFL scores).
+
+Moreover, we can see certain linear relationship between GPA and GRE scores, most students with high GPA also have higher GRE scores. There is one exception that a students with relatively low GPA scores around 328 on GRE.
+
+In this case, although our sample size is not big enough, we are still able to present a general perspective on what Statistics applicants' performances are. There is a small possibility that people posted their informations because they did well. However, combining the former evidence regarding Stats students' undergraduate schools, we believe this is really unlikely.
+
+### III. The Summary of Jobs
+Now let's take a look at the career outcome of Statistics graduates.
+```{r, fig.height=20}
+# select the people who are currently working
+job_com <- job %>% filter(company != "Actively seeking") %>% filter(!is.na(industry))
+
+# set the theme for dot plot
+theme_dotplot <- theme_bw(14) +
+    theme(axis.text.y = element_text(size = rel(.75)),
+        axis.ticks.y = element_blank(),
+        axis.title.x = element_text(size = rel(.75)),
+        panel.grid.major.x = element_blank(),
+        panel.grid.major.y = element_line(size = 0.5),
+        panel.grid.minor.x = element_blank())
+        
+ggplot(job_com, mapping = aes(y = company, x = num)) + geom_point(color ="orange") +
+  scale_x_continuous(name = "Number of People Working in the Company",
+                   breaks = c(1, 2, 3, 4, 5, 10, 13),
+                   labels = c(1, 2, 3, 4, 5, 10, 13)) +
+  theme_dotplot +
+  ggtitle("Our Graduates All Work in Big-Name Companies",
+          subtitle = "Including GS, BlackRock, Facebook, Amazon, and Mckinsey") +
+  facet_wrap(~industry, scales = "free", ncol = 2)+
+  theme(plot.title = element_text(hjust = 0.5),plot.subtitle = element_text(hjust = 0.5))
+```
+
+Excluding 135 people who are currentely looking for jobs, for the rest 155 person, we can see that they all have most of great career exits. Also, most of our graduates goes to the financial services, consulting, and tech industry, including companies like Goldman Saches, JP Morgan, Blackstone, Amazon, Facebook, and Amazon. This is really a strong evidence against the claim that our graduate are not actively in the job searching process and most of them are not able to find really good jobs.
+
+Some other interesting analysis we could do if we have more detailed data is that what job position people obtain in that company. Because it is hard to tell whether a person is doing technical job such as data scientist and data engineer, or jobs like trader and financial analyst.
+
+## Interactive Component and Other Information
+```{r, warning=FALSE}
+data_1<-read.csv("性别地区cleandata.csv",header=FALSE, encoding = "UTF-8")
+dim(data_1)
+#Sex Dist, "1" means male, "2" mean female 
+Male<-dim(filter(data_1,data_1[,1]==1))[1]
+Female<-dim(filter(data_1,data_1[,1]==2))[1]
+pie(c(124,161),labels = c("43.5%","56.5%") ,col = c("skyblue","pink"),main = "The dist of Sex" )
+legend("topright",c("Male","Female"),cex = 0.85, fill = c("skyblue","pink"))
+```
+We can see that there are more female in our program.
+
+The following are interactive plot, when you click the names, numbers will show up. 
+```{r, warning=FALSE}
+Province_NonNA<-filter(info,is.na(info[,8])==FALSE)
+Province<-sort(table(Province_NonNA$State),decreasing = T)
+Province<-data.frame(Province)
+wordcloud2(Province,color = "random-dark", backgroundColor = "orange",size = 0.75,shape = "'diamond")
+```
+Because lots of people fill out their current location, NewYork has a highest frequency.lots of people come from municipality directly under the Central Government like Beijing, Shanghai. Most part of tthers come from rich provinces in China.
+
+```{r, warning=FALSE}
+City_NonNA<-filter(info,is.na(info[,9])==FALSE)
+City<-sort(table(City_NonNA$City),decreasing = T)
+City<-data.frame(City)
+wordcloud2(City, size = 2,color = "random-light", backgroundColor = "orange")
+```
+This plot is the dist of city/borough.
+
+```{r, warning=FALSE}
+jobs<-read.csv("Clean_job_data.csv",header=FALSE, encoding = "UTF-8")
+Withjobs<-filter(jobs,jobs[,1] != "求职")
+jobs_table<-sort(table(Withjobs),decreasing = T)
+jobs_df<-jobs_table%>%as.data.frame()
+wordcloud2(jobs_table, size = 1,color = "random-light", backgroundColor = "orange")
+```
+From interactive wordcloud, we can easily get the number of companies where alumnus worked.
+
+## Conclusion
+Given all the evidence we present above, we can defend our reputation from two aspects:
+
+1. Students in Columbia Statistics Program are mainly from first-tier schools no matter they are from China , U.S or other counties/regions. Most of them perform well in those standard tests such GRE and TOEFL, which are above Columbia requirements. They all have relatively high GPA, which are also above Columbia requirements.
+2. Graduates from Columbia Statistics Program are mostly active in the job searching process. Moreover, many of them went to big-name firms including Amazon, Facebook, and Goldman Saches.
+
+Our project is also intended to tell everyone in the Columbia Statistics Program that: have confident in our program and yourselves. We are intelligent and hard-working students. We will succeed and receive what we want.

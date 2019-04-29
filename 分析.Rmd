@@ -1,0 +1,205 @@
+---
+title: "Untitled"
+author: "Wensong Qiao wq2144"
+date: "2019年4月23日"
+output: html_document
+---
+```{r}
+Sys.setlocale(category = "LC_ALL", locale = "Chinese")
+library(ggplot2)
+library(tidyr)
+library(dplyr)
+library(wordcloud2)
+```
+
+```{r}
+data_1<-read.csv("性别地区cleandata.csv",header=FALSE, encoding = "UTF-8")
+dim(data_1)
+#Sex Dist, "1" means male, "2" mean female 
+Male<-dim(filter(data_1,data_1[,1]==1))[1]
+Female<-dim(filter(data_1,data_1[,1]==2))[1]
+pie(c(124,161),labels = c("43.5%","56.5%") ,col = c("skyblue","pink"),main = "2018届性别分布" )
+legend("topright",c("Male","Female"),cex = 0.85, fill = c("skyblue","pink"))
+Province<-sort(table(data_1[,2])[-1],decreasing = T)
+City<-sort(table(data_1[,3])[-1],decreasing = T)
+Province<-data.frame(Province)
+City<-data.frame(City)
+wordcloud2(Province,color = "random-dark", backgroundColor = "pink",size = 1)
+wordcloud2(City, size = 2,color = "random-light", backgroundColor = "lightblue")
+```
+除去乱码还有308个数据,少数同学没有填写性别。
+```{r}
+data_2<-read.csv("./2018_stats.csv")
+#本科地区
+Region<-sort(table(data_2[,7])[-1],deceasing = TRUE)%>%as.data.frame()
+names(Region)<-c("Country/Region", "Number")
+ggplot(Region,aes(y=Number,x=`Country/Region`,fill=`Country/Region`))+
+       geom_bar(stat="identity")+
+  ggtitle("Country/Region for Undergraduate ")+
+  theme(plot.title = element_text(hjust = 0.5))
+
+#国家
+data_3<-filter(data_2, data_2[,7] != "")
+USA<-filter(data_3,data_3[,7]=="U.S.A")
+USA$US_Ranking<-as.numeric(USA$US_Ranking)
+CHINA<-filter(data_3,data_3[,7]=="China")
+Other<-filter(data_3,data_3[,7]!="China" & data_3[,7] !="U.S.A")
+
+##USA Shcool
+USNeWs<-NULL
+for (i in 1:length(USA$US_Ranking)) {
+  if(USA$US_Ranking[i]<=30&is.na(USA$US_Ranking[i])== FALSE){USNeWs[i]<-"Top30"}
+   else if(USA$US_Ranking[i]<=50&USA$US_Ranking[i]>30&is.na(USA$US_Ranking[i])== FALSE){USNeWs[i]<-"Top50"}
+   else if(USA$US_Ranking[i]<=100&USA$US_Ranking[i]>50&is.na(USA$US_Ranking[i])== FALSE){USNeWs[i]<-"Top100"}
+   else if(USA$US_Ranking[i]>100&is.na(USA$US_Ranking[i])== FALSE){USNeWs[i]<-"100+"}
+   else if(is.na(USA$US_Ranking[i])== TRUE){USNeWs[i]<-"100+"}
+   else(return(NULL))
+} 
+USA<-cbind(USA,USNeWs)
+USNeWs<-table(USNeWs)%>%as.data.frame()
+
+pie(USNeWs$Freq,labels =c("13.6%", "30.3%", "22.7%", "33.3%") ,col = c("lightblue","yellow","lightgreen","pink"),main = "美本USnews排名分布" )
+legend("topright",levels(USNeWs$USNeWs),cex = 0.85, fill = c("lightblue","yellow","lightgreen","pink"))
+USA_School<-USA[,c(2,8)]
+USA_table<-sort(table(USA_School[,1]),decreasing = T)%>%as.data.frame()%>%filter(.,Freq!=0)
+class<-NULL
+for (i in 1:nrow(USA_table)){
+       for (j in 1:nrow(USA_School)) {
+         if (USA_table[i,1]==USA_School[j,1]){class[i]<-as.character(USA_School[j,2])}
+       }
+}
+
+USA_table<-USA_table%>%cbind(.,class)
+colnames(USA_table)<-c("University","Number","Ranking")
+
+theme_dotplot <- theme_bw(14) +
+    theme(axis.text.y = element_text(size = rel(.75)),
+        axis.ticks.y = element_blank(),
+        axis.title.x = element_text(size = rel(.75)),
+        panel.grid.major.x = element_blank(),
+        panel.grid.major.y = element_line(size = 0.5),
+        panel.grid.minor.x = element_blank())
+
+ggplot(USA_table, aes(x = Number, y = reorder(University,Number),col = Ranking)) +
+    geom_point() +
+    scale_x_continuous(limits = c(1, 5),breaks = seq(0, 5, 1)) +
+    theme_dotplot +
+    ylab("University") +
+    ggtitle("美本概况")+
+    theme(plot.title = element_text(hjust = 0.5))
+
+```
+
+```{r}
+CHINA[19,5]<-FALSE
+CHINA[19,6]<-FALSE
+CHINA[21,5]<-FALSE
+CHINA[21,6]<-FALSE
+
+class<-NULL
+for (i in 1:nrow(CHINA)) {
+  if (CHINA[i,5] == TRUE & CHINA[i,6] == FALSE) {class[i]<-"211"}
+  else if (CHINA[i,6] == TRUE){class[i]<-"985"}
+  else(class[i]<-"Non-211/985")
+}
+
+CHINA<-cbind(CHINA,class)
+
+ggplot(CHINA,aes(x=class,fill=`class`))+
+       geom_bar(stat="count")+
+       ggtitle("中国学生分布")+
+       theme(plot.title = element_text(hjust = 0.5))
+
+ggplot(CHINA,aes(x=class,fill=`Under_Grad_School`))+
+       geom_bar(stat="count")+
+       ggtitle("中国学生分布")+
+       theme(plot.title = element_text(hjust = 0.5))
+
+CHINA_table<-sort(table(CHINA$Under_Grad_School),decreasing = T)%>%as.data.frame()
+CHINA_table<-filter(CHINA_table,CHINA_table[,2] != 0)
+CHINA_table
+
+```
+
+```{r}
+ggplot(Other,aes(x=Other$Country.Region,fill=`Under_Grad_School`))+
+       geom_bar(stat="count")+
+       ggtitle("其他国家学生分布")+
+       theme(plot.title = element_text(hjust = 0.5))+
+       ylab("Number")+
+       xlab("Country/Region")
+```
+
+#Undergrad Major
+```{r}
+major<-filter(data_2,data_2$Under_Grad_Major != "")
+major<-major$Under_Grad_Major
+major_table<-sort(table(major),decreasing = T)
+major_table
+
+major_table<-major_table%>%as.data.frame()
+ggplot(major_table,aes(x=major,y=Freq,fill=`major`))+
+       geom_bar(stat="identity")+
+       ggtitle("本科专业分布")+
+       theme(plot.title = element_text(hjust = 0.5))+
+       ylab("Number")+
+       xlab("Major")
+
+```
+
+#Jobs
+```{r}
+jobs<-read.csv("Clean_job_data.csv",header=FALSE, encoding = "UTF-8")
+Withjobs<-filter(jobs,jobs[,1] != "求职")
+jobs_table<-sort(table(Withjobs),decreasing = T)
+jobs_table
+
+jobs_df<-jobs_table%>%as.data.frame()
+wordcloud2(jobs_table, size = 1,color = "random-light", backgroundColor = "grey")
+```
+#黑石，高盛，UBS,uber,Facebook，amazon,McKinsey,JPmorgan,McKinsey
+
+
+#2019年申请情况
+```{r}
+Application_this_year<-read.csv("2019application.csv",header=FALSE, encoding = "UTF-8")
+GPA<-filter(Application_this_year,is.na(Application_this_year[,1]) ==FALSE)%>%.[,1]%>%as.data.frame()
+GRE<-filter(Application_this_year,is.na(Application_this_year[,2]) ==FALSE)%>%.[,2]%>%as.data.frame()
+TOFEL<-filter(Application_this_year,is.na(Application_this_year[,3]) ==FALSE)%>%.[,3]%>%as.data.frame()
+University<-filter(Application_this_year,Application_this_year[,4] !="")%>%.[,4]%>%as.data.frame()
+
+ggplot(GPA, aes(x = GPA[,1])) + 
+  geom_histogram( colour = "#80593D", fill = "#9FC29F",binwidth = 0.05)+
+  ggtitle("Distribution of GPA ")+
+  xlab("GPA")+
+  ylab("Number")+
+  theme(plot.title = element_text(hjust = 0.5))
+
+
+ggplot(GRE, aes(x = GRE[,1])) + 
+  geom_histogram( colour = "#80593D", fill = "#9FC29F",binwidth = 2)+
+  ggtitle("Distribution of GRE ")+
+  xlab("GRE")+
+  ylab("Number")+
+  theme(plot.title = element_text(hjust = 0.5))
+
+ggplot(TOFEL, aes(x = TOFEL[,1])) + 
+  geom_histogram( colour = "#80593D", fill = "#9FC29F",binwidth = 1)+
+  ggtitle("Distribution of TOFEL ")+
+  xlab("TOFEL")+
+  ylab("Number")+
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+```{r}
+
+```
+
+```{r}
+
+```
+
+```{r}
+
+```
+
